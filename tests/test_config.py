@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from ecochronos_vault.config import Settings
@@ -16,6 +18,10 @@ def test_default_bind_address_and_port() -> None:
     assert settings.ingest_schedule_enabled is False
     assert settings.ingest_interval_seconds == 86400
     assert settings.openaq_base_url == "https://api.openaq.org/v3"
+    assert settings.staging_dir == Path("data/staging")
+    assert settings.processed_dir == Path("data/processed")
+    assert settings.resample_rule == "daily_mean_by_station"
+    assert settings.output_format == "parquet"
 
 
 def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -39,6 +45,10 @@ def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("OPENAQ_API_KEY", "secret-key")
     monkeypatch.setenv("OPENAQ_LIMIT", "50")
     monkeypatch.setenv("OPENAQ_ISO", "us")
+    monkeypatch.setenv("STAGING_DIR", "var/staging")
+    monkeypatch.setenv("PROCESSED_DIR", "var/processed")
+    monkeypatch.setenv("RESAMPLE_RULE", "daily_mean_by_station")
+    monkeypatch.setenv("OUTPUT_FORMAT", "parquet")
 
     settings = Settings(_env_file=None)
     assert settings.api_host == "127.0.0.1"
@@ -58,6 +68,10 @@ def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None
     assert settings.openaq_api_key == "secret-key"
     assert settings.openaq_limit == 50
     assert settings.openaq_iso == "us"
+    assert settings.staging_dir == Path("var/staging")
+    assert settings.processed_dir == Path("var/processed")
+    assert settings.resample_rule == "daily_mean_by_station"
+    assert settings.output_format == "parquet"
 
 
 def test_archive_upload_token_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:

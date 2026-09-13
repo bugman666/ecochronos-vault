@@ -25,11 +25,11 @@
 
 ## 当前状态
 
-骨架已能本地跑起来，并且接上了第一个按天采集源：
+骨架已能本地跑起来，接上了第一个按天采集源，并且本地批处理可以把暂存 CSV 洗成按日 Parquet：
 
 - [x] 可运行骨架（配置、健康检查、Compose 含 Postgres/MinIO）  
 - [x] 按天采集管道（OpenAQ v3 → 本地 `data/raw/`）  
-- [ ] 本地批处理写出 Parquet（或 NetCDF/Zarr）  
+- [x] 本地批处理写出 Parquet（或 NetCDF/Zarr）  
 - [x] MinIO 归档 + 只读下载路径  
 - [ ] PostGIS 元数据登记与简单检索 API  
 
@@ -60,8 +60,37 @@ MinIO 归档与 Range 下载已在主线落地（见下方「归档与下载」�
 
 仍是占位：
 
-- `#3` 本地清洗并写出 Parquet / NetCDF / Zarr（`write_parquet_batch`）
 - `#5` 在 PostGIS 登记路径、范围与 checksum（`register_postgis_metadata`）
+
+## 批处理
+
+这一切片只做本地清洗与按日聚合，不跑 Docker，也不访问网络。DuckDB 读 `STAGING_DIR`（默认 `data/staging`）里的 `*.csv`，写出科研常用的 Parquet。
+
+约定（表头不区分大小写，可用别名）：
+
+| 字段 | 别名 | 说明 |
+|------|------|------|
+| `time` | `timestamp` / `datetime` / `date` | 按 **UTC 日历日** 截断 |
+| `station_id` | `station` / `site_id` / `site` | 空值丢弃 |
+| `lon` | `longitude` / `x` | 须在 `[-180, 180]` |
+| `lat` | `latitude` / `y` | 须在 `[-90, 90]` |
+| `value` | `val` / `observation` / `measure` | 数值；无法转换则丢弃 |
+
+空行、时间/坐标/观测无法转换、或经纬度越界的行都会丢掉。重采样规则目前只有 `daily_mean_by_station`：按 UTC 日期 + 站点对 `value` 和经纬度取平均，并记下 `n_obs`。默认写出：
+
+```
+{PROCESSED_DIR}/daily_mean_by_station.parquet
+{PROCESSED_DIR}/daily_mean_by_station.parquet.sha256
+```
+
+用仓库里的示例跑一遍：
+
+```bash
+pip install -e ".[dev]"
+ecochronos-vault-batch --staging-dir tests/fixtures/staging --processed-dir data/processed
+```
+
+Python 里同样可以 `from ecochronos_vault.batch import run_batch`。采集目前写出的是 OpenAQ JSON，还没有自动转成这份 CSV 约定。
 
 ## 本地跑起来
 

@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     openaq_limit: int = Field(default=100, ge=1, le=1000)
     openaq_iso: str | None = None
 
+    staging_dir: Path = Path("data/staging")
+    processed_dir: Path = Path("data/processed")
+    resample_rule: str = "daily_mean_by_station"
+    output_format: str = "parquet"
+
     @field_validator("archive_upload_token", mode="before")
     @classmethod
     def _blank_upload_token(cls, value: object) -> object:

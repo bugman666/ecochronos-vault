@@ -17,6 +17,7 @@ dependencies = [
     "minio>=7.2,<8",
     "httpx>=0.27,<1",
     "apscheduler>=3.10,<4",
+    "duckdb>=1.1,<2",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +27,7 @@ dev = [
 
 [project.scripts]
 ecochronos-vault = "ecochronos_vault.main:main"
+ecochronos-vault-batch = "ecochronos_vault.batch:main"
 
 [tool.setuptools.package-dir]
 "" = "src"
