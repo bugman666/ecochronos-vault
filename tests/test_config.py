@@ -10,6 +10,7 @@ def test_default_bind_address_and_port() -> None:
     assert settings.log_level == "info"
     assert settings.postgres_dsn is None
     assert settings.minio_bucket == "ecochronos"
+    assert settings.archive_upload_token is None
 
 
 def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -25,6 +26,7 @@ def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("MINIO_SECRET_KEY", "ecochronos_local_dev_minio")
     monkeypatch.setenv("MINIO_BUCKET", "vault-archive")
     monkeypatch.setenv("MINIO_SECURE", "false")
+    monkeypatch.setenv("ARCHIVE_UPLOAD_TOKEN", "  ")
 
     settings = Settings(_env_file=None)
     assert settings.api_host == "127.0.0.1"
@@ -36,3 +38,10 @@ def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None
     assert settings.minio_secret_key == "ecochronos_local_dev_minio"
     assert settings.minio_bucket == "vault-archive"
     assert settings.minio_secure is False
+    assert settings.archive_upload_token is None
+
+
+def test_archive_upload_token_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ARCHIVE_UPLOAD_TOKEN", "ingest-token")
+    settings = Settings(_env_file=None)
+    assert settings.archive_upload_token == "ingest-token"

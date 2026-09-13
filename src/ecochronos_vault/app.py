@@ -1,11 +1,16 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from ecochronos_vault.archive import ArchiveStore, archive_store_from_settings
+from ecochronos_vault.archive_http import router as archive_router
 from ecochronos_vault.config import Settings, get_settings
 from ecochronos_vault.health import DependencyStatus, collect_dependency_status
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    archive_store: ArchiveStore | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(
         title="EcoChronos Vault",
@@ -13,6 +18,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         summary="Open archive for high-resolution microclimate and surface ecology time series.",
     )
     app.state.settings = settings
+    app.state.archive_store = (
+        archive_store if archive_store is not None else archive_store_from_settings(settings)
+    )
+    app.include_router(archive_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, object]:

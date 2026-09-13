@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +24,16 @@ class Settings(BaseSettings):
     minio_secret_key: str | None = None
     minio_bucket: str = "ecochronos"
     minio_secure: bool = False
+
+    # When empty, HTTP PUT /archive/... is disabled (open archive is read-only).
+    archive_upload_token: str | None = None
+
+    @field_validator("archive_upload_token", mode="before")
+    @classmethod
+    def _blank_upload_token(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 @lru_cache
