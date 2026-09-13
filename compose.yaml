@@ -14,6 +14,18 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-ecochronos}
       MINIO_SECURE: "false"
       ARCHIVE_UPLOAD_TOKEN: ${ARCHIVE_UPLOAD_TOKEN:-}
+      DATA_DIR: /data
+      INGEST_SOURCE: ${INGEST_SOURCE:-openaq}
+      INGEST_SCHEDULE_ENABLED: ${INGEST_SCHEDULE_ENABLED:-true}
+      INGEST_INTERVAL_SECONDS: ${INGEST_INTERVAL_SECONDS:-86400}
+      INGEST_SKIP_EXISTING: ${INGEST_SKIP_EXISTING:-false}
+      INGEST_HTTP_TIMEOUT_SECONDS: ${INGEST_HTTP_TIMEOUT_SECONDS:-30}
+      OPENAQ_BASE_URL: ${OPENAQ_BASE_URL:-https://api.openaq.org/v3}
+      OPENAQ_API_KEY: ${OPENAQ_API_KEY:-}
+      OPENAQ_LIMIT: ${OPENAQ_LIMIT:-100}
+      OPENAQ_ISO: ${OPENAQ_ISO:-}
+    volumes:
+      - ingest_data:/data
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
@@ -104,3 +116,4 @@ networks:
 volumes:
   postgres_data:
   minio_data:
+  ingest_data:

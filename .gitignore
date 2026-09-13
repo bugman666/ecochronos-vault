@@ -17,5 +17,8 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# local ingest payloads
+/data/
+
 # os
 .DS_Store

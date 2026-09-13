@@ -1,6 +1,7 @@
 from functools import lru_cache
+from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +28,19 @@ class Settings(BaseSettings):
 
     # When empty, HTTP PUT /archive/... is disabled (open archive is read-only).
     archive_upload_token: str | None = None
+
+    data_dir: Path = Path("data")
+
+    ingest_source: str = "openaq"
+    ingest_schedule_enabled: bool = False
+    ingest_interval_seconds: int = Field(default=86400, ge=1)
+    ingest_skip_existing: bool = False
+    ingest_http_timeout_seconds: float = Field(default=30.0, gt=0)
+
+    openaq_base_url: str = "https://api.openaq.org/v3"
+    openaq_api_key: str | None = None
+    openaq_limit: int = Field(default=100, ge=1, le=1000)
+    openaq_iso: str | None = None
 
     @field_validator("archive_upload_token", mode="before")
     @classmethod
