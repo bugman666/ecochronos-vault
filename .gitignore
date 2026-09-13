@@ -1,0 +1,21 @@
+# secrets
+.env
+.env.local
+!.env.example
+
+# python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# os
+.DS_Store

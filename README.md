@@ -25,13 +25,35 @@
 
 ## 当前状态
 
-仓库刚建好。后续大致按这些切片推进：
+骨架已能本地跑起来。后续大致按这些切片推进：
 
-- [ ] 可运行骨架（配置、健康检查、Compose 含 Postgres/MinIO）  
+- [x] 可运行骨架（配置、健康检查、Compose 含 Postgres/MinIO）  
 - [ ] 按天采集管道（至少接上一个开放源）  
 - [ ] 本地批处理写出 Parquet（或 NetCDF/Zarr）  
 - [ ] MinIO 归档 + 只读下载路径  
 - [ ] PostGIS 元数据登记与简单检索 API  
+
+## 本地跑起来
+
+复制环境变量模板，再用 Compose 拉起 API、PostGIS 和 MinIO：
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+`/healthz` 是廉价探活（进程起来即 200）；`/readyz` 会检查 Postgres 与 MinIO。
+
+```bash
+curl -s http://127.0.0.1:8000/healthz
+```
+
+不启动容器时，可只跑单测：
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
 
 ## License
 
