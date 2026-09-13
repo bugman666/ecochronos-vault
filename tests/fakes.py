@@ -7,6 +7,16 @@ from datetime import datetime, timezone
 from typing import BinaryIO
 
 from ecochronos_vault.archive import InvalidObjectKey, ObjectMeta, ObjectNotFound, normalize_object_key
+from ecochronos_vault.metadata import (
+    ChunkNotFound,
+    ChunkQuery,
+    ChunkRecord,
+    ChunkWrite,
+    InvalidChunk,
+    bbox_intersects,
+    normalize_chunk_id,
+    time_overlaps,
+)
 
 
 class InMemoryArchiveStore:
@@ -72,3 +82,56 @@ class InMemoryArchiveStore:
             return
         for i in range(0, len(chunk), size):
             yield chunk[i : i + size]
+
+
+class InMemoryMetadataStore:
+    """In-process chunk index so CI does not need a live PostGIS."""
+
+    def __init__(self) -> None:
+        self.chunks: dict[str, ChunkRecord] = {}
+
+    def upsert(self, record: ChunkWrite) -> ChunkRecord:
+        for existing in self.chunks.values():
+            if existing.storage_key == record.storage_key and existing.chunk_id != record.chunk_id:
+                raise InvalidChunk(f"storage_key already registered: {record.storage_key}")
+        now = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        previous = self.chunks.get(record.chunk_id)
+        stored = ChunkRecord(
+            chunk_id=record.chunk_id,
+            storage_key=record.storage_key,
+            checksum=record.checksum,
+            time_start=record.time_start,
+            time_end=record.time_end,
+            bbox=record.bbox,
+            uri=record.uri,
+            dataset=record.dataset,
+            checksum_alg=record.checksum_alg,
+            size_bytes=record.size_bytes,
+            content_type=record.content_type,
+            created_at=previous.created_at if previous else now,
+            updated_at=now,
+        )
+        self.chunks[record.chunk_id] = stored
+        return stored
+
+    def get(self, chunk_id: str) -> ChunkRecord:
+        chunk_id = normalize_chunk_id(chunk_id)
+        try:
+            return self.chunks[chunk_id]
+        except KeyError as exc:
+            raise ChunkNotFound(chunk_id) from exc
+
+    def search(self, query: ChunkQuery) -> list[ChunkRecord]:
+        matched: list[ChunkRecord] = []
+        for record in self.chunks.values():
+            if not time_overlaps(record.time_start, record.time_end, query.time_start, query.time_end):
+                continue
+            if query.bbox is not None and not bbox_intersects(record.bbox, query.bbox):
+                continue
+            if query.prefix is not None and not record.storage_key.startswith(query.prefix):
+                continue
+            if query.dataset is not None and record.dataset != query.dataset:
+                continue
+            matched.append(record)
+        matched.sort(key=lambda item: (item.time_start, item.chunk_id))
+        return matched[query.offset : query.offset + query.limit]
