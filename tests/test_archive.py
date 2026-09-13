@@ -19,12 +19,12 @@ from ecochronos_vault.config import Settings
 
 def _s3_error(code: str) -> S3Error:
     return S3Error(
+        MagicMock(),
         code,
-        "not found",
+        "The specified key does not exist.",
         "/ecochronos/missing",
         "req",
         "host",
-        MagicMock(),
         "ecochronos",
         "missing",
     )

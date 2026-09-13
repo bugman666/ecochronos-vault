@@ -86,7 +86,8 @@ def test_unsatisfiable_range_is_416(archive_client: TestClient) -> None:
 
 
 def test_invalid_key_and_multipart_range_are_400(archive_client: TestClient) -> None:
-    bad_key = archive_client.get("/archive/demo/../secret")
+    # Starlette collapses raw `..` segments; send an encoded `..` path part.
+    bad_key = archive_client.get("/archive/demo/%2e%2e/secret")
     assert bad_key.status_code == 400
 
     multipart = archive_client.get(
