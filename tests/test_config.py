@@ -11,6 +11,11 @@ def test_default_bind_address_and_port() -> None:
     assert settings.postgres_dsn is None
     assert settings.minio_bucket == "ecochronos"
     assert settings.archive_upload_token is None
+    assert settings.data_dir.as_posix() == "data"
+    assert settings.ingest_source == "openaq"
+    assert settings.ingest_schedule_enabled is False
+    assert settings.ingest_interval_seconds == 86400
+    assert settings.openaq_base_url == "https://api.openaq.org/v3"
 
 
 def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -27,6 +32,13 @@ def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("MINIO_BUCKET", "vault-archive")
     monkeypatch.setenv("MINIO_SECURE", "false")
     monkeypatch.setenv("ARCHIVE_UPLOAD_TOKEN", "  ")
+    monkeypatch.setenv("DATA_DIR", "/var/lib/ecochronos")
+    monkeypatch.setenv("INGEST_SCHEDULE_ENABLED", "true")
+    monkeypatch.setenv("INGEST_INTERVAL_SECONDS", "3600")
+    monkeypatch.setenv("INGEST_SKIP_EXISTING", "true")
+    monkeypatch.setenv("OPENAQ_API_KEY", "secret-key")
+    monkeypatch.setenv("OPENAQ_LIMIT", "50")
+    monkeypatch.setenv("OPENAQ_ISO", "us")
 
     settings = Settings(_env_file=None)
     assert settings.api_host == "127.0.0.1"
@@ -39,6 +51,13 @@ def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None
     assert settings.minio_bucket == "vault-archive"
     assert settings.minio_secure is False
     assert settings.archive_upload_token is None
+    assert settings.data_dir.as_posix() == "/var/lib/ecochronos"
+    assert settings.ingest_schedule_enabled is True
+    assert settings.ingest_interval_seconds == 3600
+    assert settings.ingest_skip_existing is True
+    assert settings.openaq_api_key == "secret-key"
+    assert settings.openaq_limit == 50
+    assert settings.openaq_iso == "us"
 
 
 def test_archive_upload_token_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -17,7 +17,7 @@
 
 | 层 | 选型 | 用途 |
 |----|------|------|
-| API / 编排 | Python · FastAPI + Celery 或 Temporal | 任务调度与服务入口 |
+| API / 编排 | Python · FastAPI + 进程内调度或 cron | 任务调度与服务入口 |
 | 本地分析 | DuckDB | 清洗、重采样、列式写出 |
 | 对象存储 | MinIO（S3 兼容） | 数据集归档与只读分发 |
 | 下载 | Nginx（或同类） | 大文件分块直链 |
@@ -25,13 +25,43 @@
 
 ## 当前状态
 
-骨架已能本地跑起来。后续大致按这些切片推进：
+骨架已能本地跑起来，并且接上了第一个按天采集源：
 
 - [x] 可运行骨架（配置、健康检查、Compose 含 Postgres/MinIO）  
-- [ ] 按天采集管道（至少接上一个开放源）  
+- [x] 按天采集管道（OpenAQ v3 → 本地 `data/raw/`）  
 - [ ] 本地批处理写出 Parquet（或 NetCDF/Zarr）  
 - [x] MinIO 归档 + 只读下载路径  
 - [ ] PostGIS 元数据登记与简单检索 API  
+
+## 采集源：OpenAQ
+
+这一切片只接 **OpenAQ v3**（HTTP JSON），方便单测用假响应替换真实网络。每天（或按 `INGEST_INTERVAL_SECONDS`）请求：
+
+`GET {OPENAQ_BASE_URL}/locations?limit=…`（可选 `iso=` 国家过滤）
+
+把响应包一层抓取元数据后写入：
+
+```
+{DATA_DIR}/raw/openaq/YYYY-MM-DD/locations.json
+```
+
+同一天再跑一次会先写临时文件再原子替换，不会留下半截文件。设 `INGEST_SKIP_EXISTING=true` 或 `ecochronos-vault ingest --skip-existing` 则已有当天文件时跳过。
+
+OpenAQ v3 需要免费 API Key：在 [explore.openaq.org](https://explore.openaq.org) 注册，写入 `OPENAQ_API_KEY`。没有 key 时采集会失败并记入状态，不会改坏已有文件。
+
+调度两种用法：
+
+- **cron / 手动**：`ecochronos-vault ingest`（可加 `--date YYYY-MM-DD`）
+- **进程内**：`INGEST_SCHEDULE_ENABLED=true` 时 API 启动后用 APScheduler 按间隔跑；默认间隔 86400 秒，启动先跑一轮
+
+上次结果：`GET /ingest/status` 或 `ecochronos-vault ingest-status`。
+
+MinIO 归档与 Range 下载已在主线落地（见下方「归档与下载」）。采集结果目前只写本地磁盘，尚未自动推到 bucket。
+
+仍是占位：
+
+- `#3` 本地清洗并写出 Parquet / NetCDF / Zarr（`write_parquet_batch`）
+- `#5` 在 PostGIS 登记路径、范围与 checksum（`register_postgis_metadata`）
 
 ## 本地跑起来
 
@@ -42,13 +72,22 @@ cp .env.example .env
 docker compose up --build
 ```
 
-`/healthz` 是廉价探活（进程起来即 200）；`/readyz` 会检查 Postgres 与 MinIO。
+`/healthz` 是廉价探活（进程起来即 200）；`/readyz` 会检查 Postgres 与 MinIO。Compose 里默认打开采集调度，需要先填 `OPENAQ_API_KEY` 才会真正拉到数据。
 
 ```bash
 curl -s http://127.0.0.1:8000/healthz
+curl -s http://127.0.0.1:8000/ingest/status
 ```
 
-不启动容器时，可只跑单测：
+本机不经 Compose、只跑一次采集：
+
+```bash
+pip install -e ".[dev]"
+ecochronos-vault ingest
+ecochronos-vault ingest-status
+```
+
+不启动容器时，可只跑单测（采集测试全部走假 HTTP，不访问 OpenAQ）：
 
 ```bash
 pip install -e ".[dev]"
@@ -96,4 +135,4 @@ store.put_bytes("demo/alphabet.txt", b"abcdefghijklmnopqrstuvwxyz\n", content_ty
 
 ## License
 
-待定（倾向 MIT 或 Apache-2.0）。
+MIT。见仓库根目录 `LICENSE`。

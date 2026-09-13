@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
@@ -5,6 +7,8 @@ from ecochronos_vault.archive import ArchiveStore, archive_store_from_settings
 from ecochronos_vault.archive_http import router as archive_router
 from ecochronos_vault.config import Settings, get_settings
 from ecochronos_vault.health import DependencyStatus, collect_dependency_status
+from ecochronos_vault.ingest import build_ingest_status_view
+from ecochronos_vault.ingest.scheduler import start_scheduler
 
 
 def create_app(
@@ -12,12 +16,27 @@ def create_app(
     archive_store: ArchiveStore | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        scheduler = None
+        if settings.ingest_schedule_enabled:
+            scheduler = start_scheduler(settings, run_immediately=True)
+        app.state.ingest_scheduler = scheduler
+        try:
+            yield
+        finally:
+            if scheduler is not None:
+                scheduler.shutdown(wait=False)
+
     app = FastAPI(
         title="EcoChronos Vault",
         version="0.1.0",
         summary="Open archive for high-resolution microclimate and surface ecology time series.",
+        lifespan=lifespan,
     )
     app.state.settings = settings
+    app.state.ingest_scheduler = None
     app.state.archive_store = (
         archive_store if archive_store is not None else archive_store_from_settings(settings)
     )
@@ -41,6 +60,11 @@ def create_app(
             "dependencies": dependencies,
         }
         return JSONResponse(status_code=200 if ready else 503, content=body)
+
+    @app.get("/ingest/status")
+    def ingest_status() -> dict[str, object]:
+        """Last ingest run plus scheduler configuration."""
+        return build_ingest_status_view(settings)
 
     return app
 

@@ -1,4 +1,4 @@
-.PHONY: install test run compose-up compose-config
+.PHONY: install test run ingest ingest-status compose-up compose-config
 
 install:
 	pip install -e ".[dev]"
@@ -7,7 +7,13 @@ test:
 	pytest
 
 run:
-	ecochronos-vault
+	ecochronos-vault serve
+
+ingest:
+	ecochronos-vault ingest
+
+ingest-status:
+	ecochronos-vault ingest-status
 
 compose-up:
 	docker compose up --build
