@@ -1,0 +1,10 @@
+.git
+.github
+.venv
+tests
+**/.pytest_cache
+**/__pycache__
+*.egg-info
+.env
+.python-version
+uv.lock
