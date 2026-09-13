@@ -219,9 +219,11 @@ def run_batch(
             CREATE OR REPLACE VIEW cleaned AS
             SELECT
               COALESCE(
-                try_cast(trimmed_time AS TIMESTAMPTZ),
-                try_cast(trimmed_time AS TIMESTAMP),
-                CAST(try_cast(trimmed_time AS DATE) AS TIMESTAMP)
+                try_strptime(stripped_time, '%Y-%m-%dT%H:%M:%S'),
+                try_strptime(stripped_time, '%Y-%m-%dT%H:%M:%S.%f'),
+                try_strptime(stripped_time, '%Y-%m-%d %H:%M:%S'),
+                try_strptime(stripped_time, '%Y-%m-%d %H:%M:%S.%f'),
+                try_strptime(stripped_time, '%Y-%m-%d')
               ) AS ts,
               nullif(trim(CAST(station_id AS VARCHAR)), '') AS station_id,
               try_cast(nullif(trim(CAST(lon AS VARCHAR)), '') AS DOUBLE) AS lon,
@@ -229,7 +231,11 @@ def run_batch(
               try_cast(nullif(trim(CAST(value AS VARCHAR)), '') AS DOUBLE) AS value
             FROM (
               SELECT
-                nullif(trim(CAST(time AS VARCHAR)), '') AS trimmed_time,
+                regexp_replace(
+                  nullif(trim(CAST(time AS VARCHAR)), ''),
+                  '[Zz]$',
+                  ''
+                ) AS stripped_time,
                 station_id,
                 lon,
                 lat,

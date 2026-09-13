@@ -53,7 +53,7 @@ def test_run_batch_cleans_resamples_and_writes_parquet(tmp_path: Path) -> None:
     assert result.output_path.is_file()
     assert result.checksum_path.is_file()
     assert result.rows_read == 14
-    assert result.rows_kept == 4
+    assert result.rows_kept == 5
     assert result.rows_written == 3
     assert {path.name for path in result.input_files} == {
         "aliases.csv",
