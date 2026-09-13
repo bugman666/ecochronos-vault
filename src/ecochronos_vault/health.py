@@ -3,9 +3,9 @@ from __future__ import annotations
 from enum import StrEnum
 
 import urllib3
-from minio import Minio
 from psycopg import connect
 
+from ecochronos_vault.archive import build_minio_client, minio_configured
 from ecochronos_vault.config import Settings
 
 _HTTP_TIMEOUT = urllib3.Timeout(connect=2.0, read=2.0)
@@ -33,20 +33,13 @@ def check_postgres(settings: Settings) -> DependencyStatus:
 
 
 def check_minio(settings: Settings) -> DependencyStatus:
-    if not (
-        _configured(settings.minio_endpoint)
-        and _configured(settings.minio_access_key)
-        and _configured(settings.minio_secret_key)
-    ):
+    if not minio_configured(settings):
         return DependencyStatus.SKIPPED
     try:
-        http_client = urllib3.PoolManager(timeout=_HTTP_TIMEOUT, retries=False)
-        client = Minio(
-            settings.minio_endpoint.strip(),
-            access_key=settings.minio_access_key,
-            secret_key=settings.minio_secret_key,
-            secure=settings.minio_secure,
-            http_client=http_client,
+        client = build_minio_client(
+            settings,
+            timeout=_HTTP_TIMEOUT,
+            retries=False,
         )
         client.list_buckets()
         return DependencyStatus.CONNECTED

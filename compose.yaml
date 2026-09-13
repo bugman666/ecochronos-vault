@@ -13,6 +13,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-ecochronos_local_dev_minio}
       MINIO_BUCKET: ${MINIO_BUCKET:-ecochronos}
       MINIO_SECURE: "false"
+      ARCHIVE_UPLOAD_TOKEN: ${ARCHIVE_UPLOAD_TOKEN:-}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:

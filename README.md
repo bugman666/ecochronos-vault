@@ -30,7 +30,7 @@
 - [x] 可运行骨架（配置、健康检查、Compose 含 Postgres/MinIO）  
 - [ ] 按天采集管道（至少接上一个开放源）  
 - [ ] 本地批处理写出 Parquet（或 NetCDF/Zarr）  
-- [ ] MinIO 归档 + 只读下载路径  
+- [x] MinIO 归档 + 只读下载路径  
 - [ ] PostGIS 元数据登记与简单检索 API  
 
 ## 本地跑起来
@@ -53,6 +53,45 @@ curl -s http://127.0.0.1:8000/healthz
 ```bash
 pip install -e ".[dev]"
 pytest
+```
+
+## 归档与下载
+
+对象落在配置的 MinIO bucket（默认 `ecochronos`）里。HTTP 下载按开放归档处理：**只读、无鉴权**。没有对象级 ACL；MinIO 控制台和密钥只给本机/采集用。
+
+### 下载（支持 Range 断点续传）
+
+```bash
+# 全量
+curl -fL -o alphabet.txt http://127.0.0.1:8000/archive/demo/alphabet.txt
+
+# 分块 / 续传。成功时是 206 Partial Content，带 Accept-Ranges 和 Content-Range
+curl -H "Range: bytes=0-1023" -o part0.bin http://127.0.0.1:8000/archive/demo/alphabet.txt
+curl -C - -o alphabet.txt http://127.0.0.1:8000/archive/demo/alphabet.txt
+```
+
+`HEAD /archive/{key}` 只返回大小和 `Accept-Ranges: bytes`，方便先探长度再按块拉。
+
+### 上传
+
+HTTP `PUT /archive/{key}` **默认关闭**。需要本机或受信采集端走 HTTP 时，在 `.env` 里设置 `ARCHIVE_UPLOAD_TOKEN`，再用 Bearer 或 `X-Archive-Token`：
+
+```bash
+curl -X PUT \
+  -H "Authorization: Bearer $ARCHIVE_UPLOAD_TOKEN" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @alphabet.txt \
+  http://127.0.0.1:8000/archive/demo/alphabet.txt
+```
+
+批处理管道也可以直接调内部客户端，不必经过 HTTP：
+
+```python
+from ecochronos_vault.archive import ArchiveStore
+from ecochronos_vault.config import get_settings
+
+store = ArchiveStore.from_settings(get_settings())
+store.put_bytes("demo/alphabet.txt", b"abcdefghijklmnopqrstuvwxyz\n", content_type="text/plain")
 ```
 
 ## License
