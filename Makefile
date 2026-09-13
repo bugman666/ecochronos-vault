@@ -1,4 +1,4 @@
-.PHONY: install test run ingest ingest-status batch compose-up compose-config
+.PHONY: install test run ingest ingest-status batch migrate compose-up compose-config
 
 install:
 	pip install -e ".[dev]"
@@ -17,6 +17,9 @@ ingest-status:
 
 batch:
 	ecochronos-vault-batch
+
+migrate:
+	ecochronos-vault-migrate
 
 compose-up:
 	docker compose up --build

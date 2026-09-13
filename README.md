@@ -31,7 +31,7 @@
 - [x] 按天采集管道（OpenAQ v3 → 本地 `data/raw/`）  
 - [x] 本地批处理写出 Parquet（或 NetCDF/Zarr）  
 - [x] MinIO 归档 + 只读下载路径  
-- [ ] PostGIS 元数据登记与简单检索 API  
+- [x] PostGIS 元数据登记与简单检索 API  
 
 ## 采集源：OpenAQ
 
@@ -56,11 +56,7 @@ OpenAQ v3 需要免费 API Key：在 [explore.openaq.org](https://explore.openaq
 
 上次结果：`GET /ingest/status` 或 `ecochronos-vault ingest-status`。
 
-MinIO 归档与 Range 下载已在主线落地（见下方「归档与下载」）。采集结果目前只写本地磁盘，尚未自动推到 bucket。
-
-仍是占位：
-
-- `#5` 在 PostGIS 登记路径、范围与 checksum（`register_postgis_metadata`）
+MinIO 归档与 Range 下载已在主线落地（见下方「归档与下载」）。采集结果目前只写本地磁盘，尚未自动推到 bucket。归档之后可用 `PUT /chunks` 或 `MetadataStore.upsert` 登记时空范围与 checksum。
 
 ## 批处理
 
@@ -90,7 +86,7 @@ pip install -e ".[dev]"
 ecochronos-vault-batch --staging-dir tests/fixtures/staging --processed-dir data/processed
 ```
 
-Python 里同样可以 `from ecochronos_vault.batch import run_batch`。采集目前写出的是 OpenAQ JSON，还没有自动转成这份 CSV 约定。
+Python 里同样可以 `from ecochronos_vault.batch import run_batch`。采集目前写出的是 OpenAQ JSON，还没有自动转成这份 CSV 约定。Parquet 进归档后，可用旁边的 `.sha256` 和站点范围去登记 PostGIS 元数据。
 
 ## 本地跑起来
 
@@ -160,6 +156,81 @@ from ecochronos_vault.config import get_settings
 
 store = ArchiveStore.from_settings(get_settings())
 store.put_bytes("demo/alphabet.txt", b"abcdefghijklmnopqrstuvwxyz\n", content_type="text/plain")
+```
+
+## 元数据（PostGIS + checksum）
+
+每个时空数据块在 Postgres/PostGIS 里登记：稳定 `chunk_id`、对象 `storage_key` / 可选 `uri`、WGS84 `bbox`、时间范围、`sha256` 校验和。OpenAQ 采集目前只写本地 `data/raw/`；对象进归档后，用同一条内部 API 登记即可。
+
+### 迁移
+
+Compose 里的 API 进程启动时会尝试套用 schema（`CREATE EXTENSION postgis`、`chunk_metadata` 表和 GIST 索引）。也可以单独跑：
+
+```bash
+# 需要 POSTGRES_DSN（见 .env.example）
+ecochronos-vault-migrate
+# 或
+make migrate
+```
+
+本机直连 Compose 的 Postgres 时，把 `POSTGRES_DSN` 指到 `127.0.0.1:5432`。CI 单测不连真实 PostGIS，用内存索引覆盖检索/登记行为。
+
+### 登记（内部 / HTTP）
+
+`PUT /chunks` 与归档上传共用 `ARCHIVE_UPLOAD_TOKEN`；未设置则禁止写入。检索是开放的。
+
+```bash
+curl -sS -X PUT http://127.0.0.1:8000/chunks \
+  -H "Authorization: Bearer $ARCHIVE_UPLOAD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chunk_id": "demo/2024-06-01",
+    "storage_key": "archive/demo/2024-06-01.parquet",
+    "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "time_start": "2024-06-01T00:00:00Z",
+    "time_end": "2024-06-02T00:00:00Z",
+    "bbox": [-10.0, 50.0, 2.0, 60.0],
+    "dataset": "demo"
+  }'
+```
+
+批处理也可以直接调 store（之后的采集/Parquet 管道可以在写出对象后接上）：
+
+```python
+from datetime import datetime, timezone
+
+from ecochronos_vault.config import get_settings
+from ecochronos_vault.metadata import ChunkWrite, metadata_store_from_settings, sha256_hex
+
+store = metadata_store_from_settings(get_settings())
+store.upsert(ChunkWrite(
+    chunk_id="demo/2024-06-01",
+    storage_key="archive/demo/2024-06-01.parquet",
+    checksum=sha256_hex(b""),
+    time_start=datetime(2024, 6, 1, tzinfo=timezone.utc),
+    time_end=datetime(2024, 6, 2, tzinfo=timezone.utc),
+    bbox=(-10.0, 50.0, 2.0, 60.0),
+    dataset="demo",
+))
+```
+
+### 检索
+
+`GET /chunks` 可按时间重叠、bbox 相交、`storage_key` 前缀、`dataset` 过滤，返回 checksum 和位置信息：
+
+```bash
+# 列出
+curl -sS "http://127.0.0.1:8000/chunks"
+
+# 时间范围 + bbox（west,south,east,north）+ key 前缀
+curl -sS -G "http://127.0.0.1:8000/chunks" \
+  --data-urlencode "time_start=2024-06-01T00:00:00Z" \
+  --data-urlencode "time_end=2024-06-02T00:00:00Z" \
+  --data-urlencode "bbox=-1,54,1,56" \
+  --data-urlencode "prefix=archive/demo"
+
+# 单条
+curl -sS "http://127.0.0.1:8000/chunks/demo/2024-06-01"
 ```
 
 ## License

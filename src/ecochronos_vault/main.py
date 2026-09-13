@@ -10,12 +10,13 @@ import uvicorn
 
 from ecochronos_vault.config import get_settings
 from ecochronos_vault.ingest import build_ingest_status_view, run_daily_ingest
+from ecochronos_vault.migrate import apply_migrations
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ecochronos-vault",
-        description="EcoChronos Vault API and daily OpenAQ ingest.",
+        description="EcoChronos Vault API, daily OpenAQ ingest, and metadata schema.",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -40,12 +41,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     sub.add_parser("ingest-status", help="Print last ingest status as JSON")
+    sub.add_parser("migrate", help="Apply PostGIS metadata schema")
     return parser
 
 
 def _serve() -> None:
     settings = get_settings()
     logging.basicConfig(level=settings.log_level.upper())
+    dsn = (settings.postgres_dsn or "").strip()
+    if dsn:
+        try:
+            apply_migrations(dsn)
+        except Exception:
+            logging.exception(
+                "failed to apply metadata schema; GET/PUT /chunks will error until Postgres is ready"
+            )
     uvicorn.run(
         "ecochronos_vault.app:app",
         host=settings.api_host,
@@ -74,6 +84,13 @@ def _print_status() -> int:
     return 0
 
 
+def _migrate() -> int:
+    from ecochronos_vault.migrate import main as migrate_main
+
+    migrate_main()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -84,6 +101,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_ingest(args)
     if args.command == "ingest-status":
         return _print_status()
+    if args.command == "migrate":
+        return _migrate()
     parser.error(f"unknown command {args.command}")
     return 2
 

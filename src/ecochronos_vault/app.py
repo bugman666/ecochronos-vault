@@ -9,11 +9,14 @@ from ecochronos_vault.config import Settings, get_settings
 from ecochronos_vault.health import DependencyStatus, collect_dependency_status
 from ecochronos_vault.ingest import build_ingest_status_view
 from ecochronos_vault.ingest.scheduler import start_scheduler
+from ecochronos_vault.metadata import MetadataStore, metadata_store_from_settings
+from ecochronos_vault.metadata_http import router as metadata_router
 
 
 def create_app(
     settings: Settings | None = None,
     archive_store: ArchiveStore | None = None,
+    metadata_store: MetadataStore | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
 
@@ -40,7 +43,11 @@ def create_app(
     app.state.archive_store = (
         archive_store if archive_store is not None else archive_store_from_settings(settings)
     )
+    app.state.metadata_store = (
+        metadata_store if metadata_store is not None else metadata_store_from_settings(settings)
+    )
     app.include_router(archive_router)
+    app.include_router(metadata_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, object]:

@@ -28,12 +28,16 @@ dev = [
 [project.scripts]
 ecochronos-vault = "ecochronos_vault.main:main"
 ecochronos-vault-batch = "ecochronos_vault.batch:main"
+ecochronos-vault-migrate = "ecochronos_vault.migrate:main"
 
 [tool.setuptools.package-dir]
 "" = "src"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+ecochronos_vault = ["sql/*.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
